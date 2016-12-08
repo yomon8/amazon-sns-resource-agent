@@ -137,7 +137,6 @@ topic_arn=$OCF_RESKEY_topic_arn
 subject=$OCF_RESKEY_subject
 sns_validate
 
-echo "TEST" >> /tmp/sns.log
 case $__OCF_ACTION in
   start)           sns_start;;
   stop)            sns_stop;;
