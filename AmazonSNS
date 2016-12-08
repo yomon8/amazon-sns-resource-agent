@@ -1,0 +1,156 @@
+#!/bin/sh
+#
+# Resource Agent script for Amazon SNS
+#
+# Description: sends message by Amazon SNS to a sysadmin whenever a takeover occurs.
+#
+#       Note: This command requires an argument, unlike normal init scripts.
+#
+#         OCF parameters are as below:
+#               OCF_RESKEY_topic_arn
+#               OCF_RESKEY_subject
+#
+# License:  GNU General Public License (GPL)
+#
+# Copyright:    (C) 2016 yomon8 All rights Reserved.
+
+#######################################################################
+# Initialization:
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+#######################################################################
+
+ARGS="$0 $*"
+us=$(uname -n)
+
+meta_data() {
+cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="AmazonSNS" version="1.0">
+<version>1.0</version>
+<longdesc lang="en">
+This is a resource agent for Amazon SNS. It sends message by Amazon SNS to a sysadmin whenever
+a takeover occurs.
+</longdesc>
+<shortdesc lang="en">Notifies recipients by Amazon SNS in the event of resource takeover</shortdesc>
+<parameters>
+<parameter name="topic_arn" unique="0" required="1">
+<longdesc lang="en">
+Amazon SNS Topic ARN of sysadmin
+</longdesc>
+<shortdesc lang="en">Topic ARN</shortdesc>
+<content type="string" default="" />
+</parameter>
+<parameter name="subject" unique="0">
+<longdesc lang="en">
+The subject of the sns.
+</longdesc>
+<shortdesc lang="en">Subject</shortdesc>
+<content type="string" default="" />
+</parameter>
+</parameters>
+<actions>
+<action name="start" timeout="10" />
+<action name="stop" timeout="10" />
+<action name="status" depth="0" timeout="10" interval="10" />
+<action name="monitor" depth="0" timeout="10" interval="10" />
+<action name="meta-data" timeout="5" />
+<action name="validate-all" timeout="5" />
+</actions>
+</resource-agent>
+END
+}
+
+sns_usage() {
+  echo "Usage: $0 {start|stop|status|monitor|meta-data|validate-all}"
+}
+
+publish_message() {
+  /usr/bin/aws sns publish --target-arn "$topic_arn" --subject "$1" --message "
+  $Subject
+
+  Command line was:
+  $ARGS"
+  return $?
+}
+
+get_subject_line() {
+  case $1 in
+    ??*)  echo "$@";;
+    *)    echo "Resource Group";;
+  esac
+}
+
+sns_start() {
+  Subject="`get_subject_line $subject` Takeover in progress at `date` on $us"
+
+  publish_message "$Subject" $1
+  ha_pseudo_resource ${OCF_RESOURCE_INSTANCE} start
+}
+
+sns_stop () {
+  Subject="`get_subject_line $subject` Migrating resource away at `date` from $us"
+
+  publish_message "$Subject" $1
+  ha_pseudo_resource ${OCF_RESOURCE_INSTANCE} stop
+}
+
+sns_monitor () {
+#  ocf_log warn "Don't stat/monitor me! AmazonSNS is a pseudo resource agent, so the status reported may be incorrect"
+
+  if ha_pseudo_resource ${OCF_RESOURCE_INSTANCE} monitor
+  then
+    echo "running"
+    return $OCF_SUCCESS
+  else
+    echo "stopped"
+    return $OCF_NOT_RUNNING
+  fi
+}
+
+sns_validate () {
+  mon=$(/usr/bin/aws sns list-topics | grep TopicArn | grep "$topic_arn" | wc -l)
+  if [ $mon -ne 0 ]; then
+    return $OCF_SUCCESS
+  fi
+  ocf_exit_reason "AWS SNS Topic [$topic_arn] does not found"
+  exit $OCF_ERR_INSTALLED
+}
+
+case $__OCF_ACTION in
+  meta-data)   meta_data
+    exit $OCF_SUCCESS
+    ;;
+  usage|help)  sns_usage
+    exit $OCF_SUCCESS
+    ;;
+esac
+
+if [ -z "$OCF_RESKEY_topic_arn" ]; then
+  ocf_exit_reason "At least 1 AWS SNS Topic Arn has to be given!"
+  exit $OCF_ERR_CONFIGURED
+fi
+topic_arn=$OCF_RESKEY_topic_arn
+subject=$OCF_RESKEY_subject
+sns_validate
+
+echo "TEST" >> /tmp/sns.log
+case $__OCF_ACTION in
+  start)           sns_start;;
+  stop)            sns_stop;;
+  monitor|status)  sns_monitor;;
+  validate-all)    sns_validate;;
+  usage|help)      sns_usage
+    exit $OCF_SUCCESS
+    ;;
+  *)  sns_usage
+    exit $OCF_ERR_UNIMPLEMENTED
+    ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
