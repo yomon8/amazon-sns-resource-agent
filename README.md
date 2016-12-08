@@ -31,7 +31,7 @@ $ pcs resource list | grep AmazonSNS
 ocf:heartbeat:AmazonSNS - Notifies recipients by Amazon SNS in the event of
 ```
 
-After setting up pacemaker, configure crm setting to make eip resource agent ready. Here's an example setting:
+After setting up pacemaker, configure resource agent by pcs command. Here's an example setting:
 
 ```
 pcs resource create res-amazon-sns ocf:heartbeat:AmazonSNS \
