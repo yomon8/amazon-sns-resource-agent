@@ -8,6 +8,37 @@ This resource agent script is intended for Linux operating systems and Pacemaker
 
 This script requires [AWS Command Line Interface](http://aws.amazon.com/cli/).
 
+Some IAM policies requires. Here's an example setting:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Stmt1481000000000",
+            "Effect": "Allow",
+            "Action": [
+                "sns:ListTopics"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Sid": "Stmt1481000000000",
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
+```
+
+
 ## Getting Started
 
 Download "AmazonSNS" or clone repository:
